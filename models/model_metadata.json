@@ -1,0 +1,155 @@
+{
+  "dataset_name": "Predict Students' Dropout and Academic Success (UCI ID 697)",
+  "dataset_records_total": 4424,
+  "train_records": 3539,
+  "test_records": 885,
+  "test_split_ratio": 0.2,
+  "random_seed": 42,
+  "algorithm": "GradientBoostingClassifier",
+  "version": "1.0.0",
+  "training_timestamp": "2026-10-11T03:57:29.200511+00:00",
+  "classes": [
+    "Dropout",
+    "Enrolled",
+    "Graduate"
+  ],
+  "overall": {
+    "accuracy": 0.7525,
+    "macro_precision": 0.6908,
+    "macro_recall": 0.6763,
+    "macro_f1": 0.6818,
+    "weighted_precision": 0.7437,
+    "weighted_recall": 0.7525,
+    "weighted_f1": 0.7465,
+    "brier_score_loss": 0.1065
+  },
+  "dropout_class": {
+    "precision": 0.7955,
+    "recall": 0.7394,
+    "f1": 0.7664,
+    "support": 284
+  },
+  "confusion_matrix": {
+    "labels": [
+      "Dropout",
+      "Enrolled",
+      "Graduate"
+    ],
+    "matrix": [
+      [
+        210,
+        36,
+        38
+      ],
+      [
+        41,
+        64,
+        54
+      ],
+      [
+        13,
+        37,
+        392
+      ]
+    ]
+  },
+  "classification_report": {
+    "Dropout": {
+      "precision": 0.7955,
+      "recall": 0.7394,
+      "f1-score": 0.7664,
+      "support": 284.0
+    },
+    "Enrolled": {
+      "precision": 0.4672,
+      "recall": 0.4025,
+      "f1-score": 0.4324,
+      "support": 159.0
+    },
+    "Graduate": {
+      "precision": 0.8099,
+      "recall": 0.8869,
+      "f1-score": 0.8467,
+      "support": 442.0
+    },
+    "macro avg": {
+      "precision": 0.6908,
+      "recall": 0.6763,
+      "f1-score": 0.6818,
+      "support": 885.0
+    },
+    "weighted avg": {
+      "precision": 0.7437,
+      "recall": 0.7525,
+      "f1-score": 0.7465,
+      "support": 885.0
+    }
+  },
+  "top_features": [
+    {
+      "feature": "cont__Curricular units 2nd sem (approved)",
+      "importance": 0.4702
+    },
+    {
+      "feature": "cat__Tuition fees up to date_1",
+      "importance": 0.0408
+    },
+    {
+      "feature": "cont__Curricular units 1st sem (approved)",
+      "importance": 0.0382
+    },
+    {
+      "feature": "cont__Curricular units 2nd sem (grade)",
+      "importance": 0.0326
+    },
+    {
+      "feature": "cont__Age at enrollment",
+      "importance": 0.0287
+    },
+    {
+      "feature": "cont__Curricular units 1st sem (evaluations)",
+      "importance": 0.028
+    },
+    {
+      "feature": "cat__Tuition fees up to date_0",
+      "importance": 0.0273
+    },
+    {
+      "feature": "cont__Curricular units 2nd sem (evaluations)",
+      "importance": 0.0251
+    },
+    {
+      "feature": "cont__Curricular units 2nd sem (enrolled)",
+      "importance": 0.0241
+    },
+    {
+      "feature": "cont__Admission grade",
+      "importance": 0.0229
+    },
+    {
+      "feature": "cont__Previous qualification (grade)",
+      "importance": 0.0176
+    },
+    {
+      "feature": "cont__Curricular units 1st sem (grade)",
+      "importance": 0.0168
+    },
+    {
+      "feature": "cat__Course_171",
+      "importance": 0.0137
+    },
+    {
+      "feature": "cont__Curricular units 1st sem (enrolled)",
+      "importance": 0.013
+    },
+    {
+      "feature": "cont__GDP",
+      "importance": 0.0126
+    }
+  ],
+  "hyperparameters": {
+    "n_estimators": 150,
+    "max_depth": 4,
+    "learning_rate": 0.1
+  }
+}

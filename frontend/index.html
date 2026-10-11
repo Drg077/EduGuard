@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGuard — Student Performance & Dropout Risk Prediction System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .risk-high { background-color: #fee2e2; color: #991b1b; border-color: #f87171; }
+    .risk-moderate { background-color: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .risk-low { background-color: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TOP NAVBAR -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <div class="flex items-center space-x-3">
+          <div class="bg-indigo-600 p-2 rounded-lg text-white font-bold text-xl flex items-center justify-center">
+            <i class="fa-solid fa-graduation-cap"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-lg tracking-tight text-white">EduGuard</span>
+              <span class="text-xs bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded font-mono border border-indigo-400/30">v1.0</span>
+            </div>
+            <p class="text-xs text-slate-400">Student Performance & Dropout Risk Prediction</p>
+          </div>
+        </div>
+
+        <!-- System Quick Health Indicator Pills -->
+        <div class="hidden md:flex items-center space-x-3 text-xs">
+          <div id="pill-backend" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>API Online</span>
+          </div>
+          <div id="pill-kafka" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+            <span id="dot-kafka" class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span id="text-kafka">Kafka: Checking</span>
+          </div>
+          <div id="pill-hdfs" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+            <span id="dot-hdfs" class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span id="text-hdfs">HDFS: Checking</span>
+          </div>
+          <button onclick="triggerManualPrediction()" class="ml-2 inline-flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-md font-medium text-xs shadow-sm transition">
+            <i class="fa-solid fa-play text-[10px]"></i>
+            <span>Run Predictions</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUB-NAVIGATION BAR -->
+    <div class="bg-slate-800 border-t border-slate-700/60 px-4 sm:px-6 lg:px-8">
+      <div class="max-w-7xl mx-auto flex space-x-1 sm:space-x-4 overflow-x-auto">
+        <button onclick="switchTab('overview')" id="tab-btn-overview" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-indigo-500 text-white flex items-center space-x-1.5">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Overview</span>
+        </button>
+        <button onclick="switchTab('flagged')" id="tab-btn-flagged" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+          <span>Flagged Students (&gt;0.6)</span>
+          <span id="badge-flagged-count" class="ml-1 bg-rose-600 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">0</span>
+        </button>
+        <button onclick="switchTab('students')" id="tab-btn-students" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-users"></i>
+          <span>All Students</span>
+        </button>
+        <button onclick="switchTab('history')" id="tab-btn-history" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>Prediction Runs</span>
+        </button>
+        <button onclick="switchTab('model')" id="tab-btn-model" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-brain"></i>
+          <span>Model Governance</span>
+        </button>
+        <button onclick="switchTab('predict')" id="tab-btn-predict" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-calculator"></i>
+          <span>Risk Estimator</span>
+        </button>
+        <button onclick="switchTab('system')" id="tab-btn-system" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-server"></i>
+          <span>System Status</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- GLOBAL NOTIFICATION BANNER -->
+    <div id="toast-banner" class="hidden mb-4 p-4 rounded-lg flex items-center justify-between text-sm shadow-sm transition">
+      <div class="flex items-center space-x-2">
+        <i id="toast-icon" class="fa-solid fa-circle-info"></i>
+        <span id="toast-message">Message</span>
+      </div>
+      <button onclick="hideToast()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 1: OVERVIEW & ANALYTICS -->
+    <!-- ========================================== -->
+    <section id="tab-overview" class="space-y-6">
+      <!-- POLICY NOTICE -->
+      <div class="bg-indigo-50 border-l-4 border-indigo-600 p-4 rounded-r-lg text-xs text-indigo-900 flex items-start space-x-3">
+        <i class="fa-solid fa-circle-info text-indigo-600 text-base mt-0.5"></i>
+        <div>
+          <span class="font-bold">Official Risk Threshold Policy:</span>
+          Students are flagged for advisor intervention strictly when the model-predicted dropout risk score exceeds <strong>0.60</strong> (i.e. <code class="bg-indigo-100 px-1 py-0.5 rounded font-semibold">score &gt; 0.60</code>). A score of 0.60 is not flagged; 0.61 is flagged. Predictions are generated automatically on a weekly schedule.
+        </div>
+      </div>
+
+      <!-- KPI METRIC CARDS -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <!-- Card 1: Total Students -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Students</p>
+              <h3 id="stat-total-students" class="text-2xl font-bold text-slate-800 mt-1">--</h3>
+            </div>
+            <div class="p-2.5 rounded-lg bg-blue-50 text-blue-600">
+              <i class="fa-solid fa-users text-lg"></i>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-3 flex items-center">
+            <i class="fa-solid fa-database mr-1"></i> Recorded in system
+          </p>
+        </div>
+
+        <!-- Card 2: Students with Predictions -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">With Predictions</p>
+              <h3 id="stat-students-predicted" class="text-2xl font-bold text-indigo-600 mt-1">--</h3>
+            </div>
+            <div class="p-2.5 rounded-lg bg-indigo-50 text-indigo-600">
+              <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-3 flex items-center">
+            <i class="fa-solid fa-check mr-1"></i> Model evaluated
+          </p>
+        </div>
+
+        <!-- Card 3: Flagged for Follow-up -->
+        <div class="bg-white p-5 rounded-xl border border-rose-200 shadow-sm bg-rose-50/20">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-xs font-medium text-rose-700 uppercase tracking-wider">Flagged (&gt;0.6)</p>
+              <h3 id="stat-students-flagged" class="text-2xl font-bold text-rose-600 mt-1">--</h3>
+            </div>
+            <div class="p-2.5 rounded-lg bg-rose-100 text-rose-600">
+              <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+            </div>
+          </div>
+          <p class="text-[11px] text-rose-600 font-medium mt-3 flex items-center">
+            <i class="fa-solid fa-bell mr-1"></i> Advisor action required
+          </p>
+        </div>
+
+        <!-- Card 4: Not Flagged -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Not Flagged</p>
+              <h3 id="stat-students-not-flagged" class="text-2xl font-bold text-emerald-600 mt-1">--</h3>
+            </div>
+            <div class="p-2.5 rounded-lg bg-emerald-50 text-emerald-600">
+              <i class="fa-solid fa-shield-halved text-lg"></i>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-3 flex items-center">
+            <i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Normal risk progression
+          </p>
+        </div>
+
+        <!-- Card 5: Average Risk Score -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Risk Score</p>
+              <h3 id="stat-avg-risk" class="text-2xl font-bold text-slate-800 mt-1">--</h3>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-100 text-slate-600">
+              <i class="fa-solid fa-chart-line text-lg"></i>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-3 flex items-center">
+            <span>Range: 0.00 – 1.00</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- VISUALIZATIONS SECTION -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Chart 1: Risk Distribution -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-2">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h4 class="font-semibold text-slate-800 text-sm">Dropout Risk Score Distribution</h4>
+              <p class="text-xs text-slate-400">Student risk profile segmentation across calibrated bands</p>
+            </div>
+            <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">Live Data</span>
+          </div>
+          <div class="h-64">
+            <canvas id="chart-risk-dist"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Follow-Up Status Breakdown -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h4 class="font-semibold text-slate-800 text-sm">Advisor Action Ratio</h4>
+              <p class="text-xs text-slate-400">Strict threshold boundary (>0.6)</p>
+            </div>
+          </div>
+          <div class="h-64 flex items-center justify-center">
+            <canvas id="chart-flag-ratio"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- LATEST PREDICTION RUN STATUS BOX -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <h4 class="font-semibold text-slate-800 text-sm mb-3 flex items-center">
+          <i class="fa-solid fa-clock text-indigo-600 mr-2"></i> Most Recent Prediction Batch
+        </h4>
+        <div id="latest-run-details" class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <span class="text-slate-400 block mb-0.5">Run Identifier</span>
+            <span id="run-id-val" class="font-mono font-medium text-slate-700">Loading...</span>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <span class="text-slate-400 block mb-0.5">Execution Status</span>
+            <span id="run-status-val" class="font-medium">--</span>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <span class="text-slate-400 block mb-0.5">Records Processed</span>
+            <span id="run-total-val" class="font-medium text-slate-700">--</span>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <span class="text-slate-400 block mb-0.5">Timestamp (UTC)</span>
+            <span id="run-time-val" class="font-medium text-slate-700">--</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: FLAGGED FOR FOLLOW-UP (>0.6) -->
+    <!-- ========================================== -->
+    <section id="tab-flagged" class="hidden space-y-6">
+      <div class="bg-rose-50 border-l-4 border-rose-600 p-4 rounded-r-lg text-xs text-rose-900 flex justify-between items-center">
+        <div>
+          <h4 class="font-bold text-sm text-rose-900">Priority Advisor Action List</h4>
+          <p class="text-xs text-rose-700 mt-0.5">
+            The students below have a predicted dropout risk score strictly <strong>greater than 0.60</strong>. Prompt advisor outreach and academic support interventions are strongly recommended.
+          </p>
+        </div>
+        <button onclick="loadFlaggedStudents()" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded text-xs font-medium shadow-sm transition">
+          <i class="fa-solid fa-arrows-rotate mr-1"></i> Refresh List
+        </button>
+      </div>
+
+      <!-- Flagged Students Table Card -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-4 font-semibold">Student ID</th>
+                <th class="py-3 px-4 font-semibold">Risk Score</th>
+                <th class="py-3 px-4 font-semibold">Risk Category</th>
+                <th class="py-3 px-4 font-semibold">Predicted Outcome</th>
+                <th class="py-3 px-4 font-semibold">Evaluated At</th>
+                <th class="py-3 px-4 font-semibold text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="flagged-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="6" class="py-8 text-center text-slate-400">Loading flagged students...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: ALL STUDENTS DIRECTORY -->
+    <!-- ========================================== -->
+    <section id="tab-students" class="hidden space-y-4">
+      <!-- Search & Filters -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div class="flex-1 flex items-center space-x-2">
+          <div class="relative flex-1 max-w-md">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400"></i>
+            <input type="text" id="student-search-input" oninput="debounceSearch()" placeholder="Search by student ID (e.g. STU-1001)..." class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <select id="filter-risk-category" onchange="applyFilters()" class="border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option value="ALL">All Risk Levels</option>
+            <option value="High">High (&gt;0.6)</option>
+            <option value="Moderate">Moderate (0.35 - 0.60)</option>
+            <option value="Low">Low (&lt;0.35)</option>
+          </select>
+        </div>
+        <div class="flex items-center space-x-2">
+          <label class="flex items-center space-x-1.5 text-slate-600 cursor-pointer">
+            <input type="checkbox" id="filter-only-flagged" onchange="applyFilters()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <span>Show Only Flagged (&gt;0.6)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Students Table -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-4 font-semibold">Student ID</th>
+                <th class="py-3 px-4 font-semibold">Risk Score</th>
+                <th class="py-3 px-4 font-semibold">Category</th>
+                <th class="py-3 px-4 font-semibold">Flag Status</th>
+                <th class="py-3 px-4 font-semibold">Outcome</th>
+                <th class="py-3 px-4 font-semibold">Prediction Date</th>
+                <th class="py-3 px-4 font-semibold text-right">View Details</th>
+              </tr>
+            </thead>
+            <tbody id="students-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="7" class="py-8 text-center text-slate-400">Loading student directory...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+          <div>
+            Showing page <span id="current-page-num" class="font-semibold text-slate-700">1</span> of <span id="total-pages-num" class="font-semibold text-slate-700">1</span> (<span id="total-records-num">0</span> total students)
+          </div>
+          <div class="flex space-x-1">
+            <button id="btn-prev-page" onclick="changePage(-1)" class="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">
+              <i class="fa-solid fa-chevron-left mr-1"></i> Prev
+            </button>
+            <button id="btn-next-page" onclick="changePage(1)" class="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">
+              Next <i class="fa-solid fa-chevron-right ml-1"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: PREDICTION RUNS HISTORY -->
+    <!-- ========================================== -->
+    <section id="tab-history" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <h4 class="font-semibold text-slate-800 text-sm">Batch Prediction Execution History</h4>
+            <p class="text-xs text-slate-400">Auditable log of scheduled weekly runs and manual triggers</p>
+          </div>
+          <button onclick="triggerManualPrediction()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-medium shadow-sm transition">
+            <i class="fa-solid fa-play mr-1"></i> Trigger New Run
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-4 font-semibold">Run ID</th>
+                <th class="py-3 px-4 font-semibold">Triggered By</th>
+                <th class="py-3 px-4 font-semibold">Start Time (UTC)</th>
+                <th class="py-3 px-4 font-semibold">Status</th>
+                <th class="py-3 px-4 font-semibold">Total Records</th>
+                <th class="py-3 px-4 font-semibold">Successful</th>
+                <th class="py-3 px-4 font-semibold">Failed</th>
+              </tr>
+            </thead>
+            <tbody id="runs-table-body" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="7" class="py-8 text-center text-slate-400">Loading prediction run history...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: MODEL GOVERNANCE & INFO -->
+    <!-- ========================================== -->
+    <section id="tab-model" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Machine Learning Classification Model Governance</h3>
+          <p class="text-xs text-slate-500 mt-1">Official evaluation metrics measured on held-out test data from the UCI repository.</p>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="text-slate-500 block mb-1">Algorithm</span>
+            <span id="model-algorithm" class="font-bold text-slate-800 text-sm">GradientBoostingClassifier</span>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="text-slate-500 block mb-1">Held-Out Test Accuracy</span>
+            <span id="model-accuracy" class="font-bold text-indigo-600 text-sm">--</span>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="text-slate-500 block mb-1">Dropout Class Recall</span>
+            <span id="model-recall" class="font-bold text-rose-600 text-sm">--</span>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <span class="text-slate-500 block mb-1">Dropout Class Precision</span>
+            <span id="model-precision" class="font-bold text-emerald-600 text-sm">--</span>
+          </div>
+        </div>
+
+        <!-- Interpretation Guideline Box -->
+        <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg text-xs text-amber-900">
+          <h5 class="font-bold text-amber-900 mb-1">Risk Score Interpretation Framework:</h5>
+          <p class="leading-relaxed">
+            The dropout-risk score is calculated as the model's posterior probability of the <strong>Dropout</strong> outcome class: 
+            \( P(\text{Dropout} \mid X) \in [0.0, 1.0] \). 
+            This value represents the estimated risk based on the student's recorded curricular performance and demographics. 
+            It is an indicative early-warning score to prioritize advisor attention, <em>not</em> an absolute certainty of student dropout.
+          </p>
+        </div>
+
+        <!-- Feature Importances and Confusion Matrix -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs">
+          <div>
+            <h5 class="font-semibold text-slate-800 mb-2">Top Predictive Academic Drivers</h5>
+            <div id="top-features-list" class="space-y-1.5">
+              <p class="text-slate-400">Loading feature importances...</p>
+            </div>
+          </div>
+          <div>
+            <h5 class="font-semibold text-slate-800 mb-2">Dataset Specifications</h5>
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-slate-600">
+              <p><strong>Dataset:</strong> UCI "Predict Students' Dropout and Academic Success" (ID 697)</p>
+              <p><strong>Total Instances:</strong> 4,424 students</p>
+              <p><strong>Features:</strong> 36 variables (curricular, demographic, socio-economic)</p>
+              <p><strong>Target Classes:</strong> Graduate (50%), Dropout (32%), Enrolled (18%)</p>
+              <p><strong>Test Split:</strong> Stratified 20% holdout test set (885 instances)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 6: AD-HOC RISK ESTIMATOR -->
+    <!-- ========================================== -->
+    <section id="tab-predict" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h4 class="font-bold text-sm text-slate-800 mb-1">Interactive Student Risk Estimator</h4>
+        <p class="text-xs text-slate-500 mb-4">Input student academic features to obtain an instant model prediction.</p>
+
+        <form id="estimator-form" onsubmit="runSinglePrediction(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Student Identifier</label>
+            <input type="text" id="est-id" value="STU-ADHOC-01" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Age at Enrollment</label>
+            <input type="number" id="est-age" value="22" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Admission Grade (0-200)</label>
+            <input type="number" step="0.1" id="est-adm-grade" value="125.0" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">1st Sem Approved Units</label>
+            <input type="number" id="est-sem1-app" value="1" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">1st Sem Grade (0-20)</label>
+            <input type="number" step="0.1" id="est-sem1-grade" value="10.5" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">2nd Sem Approved Units</label>
+            <input type="number" id="est-sem2-app" value="0" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">2nd Sem Grade (0-20)</label>
+            <input type="number" step="0.1" id="est-sem2-grade" value="0.0" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Tuition Fees Up to Date?</label>
+            <select id="est-tuition" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="1">Yes (Up to date)</option>
+              <option value="0" selected>No (Overdue)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Debtor Status</label>
+            <select id="est-debtor" class="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="0">No</option>
+              <option value="1" selected>Yes (Debtor)</option>
+            </select>
+          </div>
+
+          <div class="sm:col-span-3 pt-2">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-xs shadow-sm transition">
+              <i class="fa-solid fa-calculator mr-1"></i> Compute Risk Score
+            </button>
+          </div>
+        </form>
+
+        <!-- Prediction Result Display -->
+        <div id="est-result-box" class="hidden mt-6 p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+          <h5 class="font-bold text-slate-800 text-sm mb-2">Prediction Assessment</h5>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <span class="text-slate-400 block">Risk Score</span>
+              <span id="est-score-val" class="text-xl font-bold">--</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Category</span>
+              <span id="est-cat-val" class="font-semibold text-sm">--</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Flag Status</span>
+              <span id="est-flag-val" class="font-semibold text-sm">--</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Predicted Class</span>
+              <span id="est-class-val" class="font-semibold text-sm">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 7: SYSTEM INFRASTRUCTURE HEALTH -->
+    <!-- ========================================== -->
+    <section id="tab-system" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Infrastructure & Pipeline Connectivity</h3>
+          <p class="text-xs text-slate-500 mt-1">Live status of Apache Kafka, Hadoop HDFS, and APScheduler background services.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <!-- Backend API Card -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold text-slate-800 flex items-center">
+                <i class="fa-solid fa-server text-indigo-600 mr-2"></i> FastAPI Backend
+              </span>
+              <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">OPERATIONAL</span>
+            </div>
+            <p class="text-slate-500 text-[11px]">Serving REST endpoints, validation, CORS, and prediction inference.</p>
+          </div>
+
+          <!-- Apache Kafka Card -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold text-slate-800 flex items-center">
+                <i class="fa-solid fa-network-wired text-amber-600 mr-2"></i> Apache Kafka
+              </span>
+              <span id="sys-kafka-status" class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">CHECKING</span>
+            </div>
+            <p class="text-slate-500 text-[11px]">Topic: <code class="font-mono text-slate-700">eduguard.student-data</code> on broker <code class="font-mono text-slate-700">localhost:9092</code></p>
+          </div>
+
+          <!-- Hadoop HDFS Card -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold text-slate-800 flex items-center">
+                <i class="fa-solid fa-hard-drive text-blue-600 mr-2"></i> Apache Hadoop HDFS
+              </span>
+              <span id="sys-hdfs-status" class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">CHECKING</span>
+            </div>
+            <p class="text-slate-500 text-[11px]">Storage layout: <code class="font-mono text-slate-700">/eduguard/incoming, /processed, /predictions</code></p>
+          </div>
+
+          <!-- Weekly Scheduler Card -->
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold text-slate-800 flex items-center">
+                <i class="fa-solid fa-calendar-days text-purple-600 mr-2"></i> APScheduler Weekly Cron
+              </span>
+              <span id="sys-sched-status" class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">RUNNING</span>
+            </div>
+            <p id="sys-sched-info" class="text-slate-500 text-[11px]">Every Monday at 08:00 UTC</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- STUDENT DETAIL MODAL -->
+  <div id="student-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 space-y-6 text-xs">
+      <div class="flex justify-between items-start border-b border-slate-100 pb-4">
+        <div>
+          <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Student Comprehensive Profile</span>
+          <h3 id="modal-student-id" class="text-xl font-bold text-slate-900 mt-0.5">--</h3>
+        </div>
+        <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Latest Prediction Banner -->
+      <div id="modal-prediction-banner" class="p-4 rounded-xl border flex justify-between items-center">
+        <div>
+          <span class="text-slate-500 block mb-0.5 text-[11px]">Latest Dropout Risk Score</span>
+          <span id="modal-risk-score" class="text-2xl font-bold">--</span>
+        </div>
+        <div class="text-right">
+          <span id="modal-risk-badge" class="px-3 py-1 rounded-full font-bold text-xs">--</span>
+          <span id="modal-flag-badge" class="block text-[11px] font-semibold mt-1">--</span>
+        </div>
+      </div>
+
+      <!-- Risk Score History Chart -->
+      <div>
+        <h5 class="font-bold text-slate-800 mb-2">Historical Risk Progression</h5>
+        <div class="h-44 bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <canvas id="modal-history-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Academic Features Grid -->
+      <div>
+        <h5 class="font-bold text-slate-800 mb-2">Recorded Student Features</h5>
+        <div id="modal-features-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto p-1">
+          <!-- Filled dynamically -->
+        </div>
+      </div>
+
+      <div class="text-right pt-2 border-t border-slate-100">
+        <button onclick="closeStudentModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition text-xs">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    EduGuard &copy; 2026 — Student Performance &amp; Dropout Risk Prediction System | Real Apache Kafka &amp; Hadoop HDFS Integration
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

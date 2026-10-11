@@ -1,0 +1,18 @@
+<configuration>
+    <property>
+        <name>httpfs.services.host</name>
+        <value>0.0.0.0</value>
+    </property>
+    <property>
+        <name>httpfs.http.port</name>
+        <value>14000</value>
+    </property>
+    <property>
+        <name>httpfs.proxyuser.hadoop.hosts</name>
+        <value>*</value>
+    </property>
+    <property>
+        <name>httpfs.proxyuser.hadoop.groups</name>
+        <value>*</value>
+    </property>
+</configuration>
