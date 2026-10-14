@@ -5,6 +5,7 @@ Publishes validated student data events to the eduguard.student-data topic.
 
 import json
 import logging
+import socket
 from typing import Any, Dict, List, Optional
 
 from kafka import KafkaProducer
@@ -39,7 +40,8 @@ class EduGuardKafkaProducer:
                 value_serializer=lambda v: json.dumps(v).encode("utf-8"),
                 key_serializer=lambda k: k.encode("utf-8") if k else None,
                 retries=3,
-                request_timeout_ms=10000,
+                request_timeout_ms=8000,
+                max_block_ms=5000,
                 acks="all",
             )
         return self._producer
@@ -47,6 +49,9 @@ class EduGuardKafkaProducer:
     def check_health(self) -> Dict[str, Any]:
         """Checks if Kafka broker is reachable."""
         try:
+            host, port_s = self.bootstrap_servers.split(":")[0], self.bootstrap_servers.split(":")[-1]
+            with socket.create_connection((host, int(port_s)), timeout=2):
+                pass
             prod = self.get_producer()
             # partitions_for returns None or a set of partition IDs
             partitions = prod.partitions_for(self.topic)

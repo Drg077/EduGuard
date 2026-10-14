@@ -158,27 +158,42 @@ $$\text{ELSE} \implies \text{Do Not Automatically Flag}$$
 - Python 3.12+ (or existing `.venv`)
 
 ### 1-Command Startup
+On Windows (PowerShell):
+```powershell
+.\start.ps1
+```
+
+On macOS / Linux:
 ```bash
 ./start.sh
 ```
 
-### Manual Startup
+### Manual Startup (Windows PowerShell)
 1. Start infrastructure containers:
-   ```bash
+   ```powershell
    docker compose up -d
    ```
-2. Train ML model (if not already trained):
-   ```bash
-   PYTHONPATH=. .venv/bin/python src/ml/train.py
+2. Create a virtual environment and install dependencies (first run only):
+   ```powershell
+   py -3 -m venv .venv
+   .\.venv\Scripts\python -m pip install -r requirements.txt
+   $env:PYTHONPATH = "$PWD"
    ```
-3. Initialize SQLite operational database:
-   ```bash
-   PYTHONPATH=. .venv/bin/python -c "from src.storage.database import init_db; init_db()"
+3. Train ML model (if `models/pipeline.joblib` is missing):
+   ```powershell
+   .\.venv\Scripts\python src\ml\train.py
    ```
-4. Start the FastAPI server and advisor dashboard:
-   ```bash
-   PYTHONPATH=. .venv/bin/python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+4. Initialize SQLite and seed UCI student records:
+   ```powershell
+   .\.venv\Scripts\python -c "from src.storage.database import init_db; init_db()"
+   .\.venv\Scripts\python scripts\ingest_uci_data.py --limit 120
    ```
+5. Start the FastAPI server and advisor dashboard:
+   ```powershell
+   .\.venv\Scripts\python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+   ```
+
+On macOS / Linux, use `.venv/bin/python` and `PYTHONPATH=.` in place of the PowerShell commands above.
 
 ### Access URLs
 - **Advisor Dashboard:** [http://localhost:8000](http://localhost:8000)
@@ -192,9 +207,23 @@ $$\text{ELSE} \implies \text{Do Not Automatically Flag}$$
 
 To run the complete test suite across all 7 test modules:
 
+Windows:
+```powershell
+$env:PYTHONPATH = "$PWD"
+.\.venv\Scripts\python -m pytest tests/ -v
+```
+
+macOS / Linux:
 ```bash
 PYTHONPATH=. .venv/bin/pytest tests/ -v
 ```
+
+Offline unit tests (no Docker):
+```powershell
+.\.venv\Scripts\python -m pytest tests/test_threshold.py tests/test_ml.py -v
+```
+
+Kafka / HDFS / end-to-end tests require `docker compose up -d` first. Those tests skip automatically if the broker or NameNode is unreachable.
 
 ### Test Suite Summary (39 tests):
 - `tests/test_threshold.py` (17 tests): Validates boundary scores (0.00, 0.30, 0.59, 0.60, 0.61, 0.80, 1.00) and ensures 0.60 is NOT flagged while 0.61 IS flagged.

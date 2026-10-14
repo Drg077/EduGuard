@@ -111,6 +111,9 @@ async function fetchSummary() {
     }
 
     renderFlagRatioChart(data.students_flagged, data.students_not_flagged);
+    if (data.risk_distribution) {
+      updateRiskDistributionChart(null, data.risk_distribution);
+    }
   } catch (err) {
     console.error("Summary error:", err);
   }
@@ -189,9 +192,6 @@ async function loadStudents() {
       tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">No matching student records found.</td></tr>`;
       return;
     }
-
-    // Render distribution chart once we have students
-    updateRiskDistributionChart(data.students);
 
     tbody.innerHTML = data.students
       .map((s) => {
@@ -507,7 +507,7 @@ async function runSinglePrediction(e) {
 
     const scoreEl = document.getElementById("est-score-val");
     scoreEl.innerText = (pred.dropout_risk_score * 100).toFixed(1) + "%";
-    scoreEl.className = `text-2xl font-bold ${pred.is_flagged ? "text-rose-600" : pred.risk_score > 0.35 ? "text-amber-600" : "text-emerald-600"}`;
+    scoreEl.className = `text-2xl font-bold ${pred.is_flagged ? "text-rose-600" : pred.dropout_risk_score > 0.35 ? "text-amber-600" : "text-emerald-600"}`;
 
     document.getElementById("est-cat-val").innerText = pred.risk_category;
     document.getElementById("est-flag-val").innerText = pred.is_flagged ? "FLAGGED (>0.60)" : "NOT FLAGGED";
@@ -545,19 +545,21 @@ function renderFlagRatioChart(flagged, notFlagged) {
   });
 }
 
-function updateRiskDistributionChart(students) {
-  if (!students || students.length === 0) return;
+function updateRiskDistributionChart(students, precomputedBuckets) {
   const ctx = document.getElementById("chart-risk-dist").getContext("2d");
   if (riskDistChart) riskDistChart.destroy();
 
-  // Bucket students into 10 deciles (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
-  const buckets = new Array(10).fill(0);
-  students.forEach((s) => {
-    if (s.risk_score !== null) {
-      const idx = Math.min(9, Math.floor(s.risk_score * 10));
-      buckets[idx]++;
-    }
-  });
+  let buckets = precomputedBuckets;
+  if (!buckets) {
+    if (!students || students.length === 0) return;
+    buckets = new Array(10).fill(0);
+    students.forEach((s) => {
+      if (s.risk_score !== null && s.risk_score !== undefined) {
+        const idx = Math.min(9, Math.floor(s.risk_score * 10));
+        buckets[idx]++;
+      }
+    });
+  }
 
   const labels = ["0-10%", "10-20%", "20-30%", "30-40%", "40-50%", "50-60%", "60-70%*", "70-80%*", "80-90%*", "90-100%*"];
   const bgColors = buckets.map((_, i) => (i >= 6 ? "#e11d48" : i >= 3 ? "#f59e0b" : "#10b981"));

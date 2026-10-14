@@ -11,7 +11,7 @@ from src.config import DATASET_PATH
 from src.kafka.consumer import get_kafka_consumer
 from src.kafka.producer import get_kafka_producer
 from src.scheduler.prediction_job import run_prediction_pipeline
-from src.storage.database import count_students, init_db
+from src.storage.database import count_students, init_db, upsert_student
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("eduguard.seed")
@@ -29,6 +29,7 @@ def ingest_uci_data(limit: int = 150):
     logger.info("Ingesting %d real student records via Apache Kafka...", len(records_to_ingest))
 
     producer = get_kafka_producer()
+    kafka_ok = producer.check_health().get("reachable", False)
     published_count = 0
 
     for idx, row in records_to_ingest.iterrows():
@@ -37,19 +38,27 @@ def ingest_uci_data(limit: int = 150):
         if "Target" in row_dict:
             del row_dict["Target"]
 
-        producer.publish_student_record(
-            student_id=student_id,
-            features=row_dict,
-            source="UCI_OFFICIAL_DATASET",
-        )
+        if kafka_ok:
+            producer.publish_student_record(
+                student_id=student_id,
+                features=row_dict,
+                source="UCI_OFFICIAL_DATASET",
+            )
+        else:
+            upsert_student(student_id, row_dict, source="UCI_OFFICIAL_DATASET")
         published_count += 1
 
-    producer.flush()
-    logger.info("Published %d records to Kafka topic. Now consuming...", published_count)
-
-    consumer = get_kafka_consumer()
-    results = consumer.drain_records(max_records=limit + 50, timeout_ms=5000)
-    logger.info("Consumer processed %d events into HDFS and SQLite.", len(results))
+    if kafka_ok:
+        producer.flush()
+        logger.info("Published %d records to Kafka topic. Now consuming...", published_count)
+        consumer = get_kafka_consumer()
+        results = consumer.drain_records(max_records=limit + 50, timeout_ms=8000)
+        logger.info("Consumer processed %d events into HDFS and SQLite.", len(results))
+    else:
+        logger.warning(
+            "Kafka is unreachable; seeded %d records directly into SQLite so the dashboard can still run.",
+            published_count,
+        )
 
     total_in_db = count_students()
     logger.info("Total students now in operational database: %d", total_in_db)

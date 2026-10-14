@@ -21,6 +21,7 @@ def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DATABASE_FILE), timeout=15.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA journal_mode = WAL;")
     return conn
 
 
@@ -247,20 +248,21 @@ def get_latest_predictions(
     with filtering, searching, and pagination support.
     """
     with get_connection() as conn:
-        # Subquery finds the latest prediction per student
         query = """
         WITH RankedPredictions AS (
             SELECT p.*,
                    ROW_NUMBER() OVER(PARTITION BY p.student_id ORDER BY p.created_at DESC) as rn
             FROM predictions p
         )
-        SELECT rp.prediction_id, rp.student_id, rp.run_id, rp.risk_score, rp.is_flagged,
-               rp.risk_category, rp.predicted_outcome, rp.probabilities_json,
+        SELECT rp.prediction_id, s.student_id, rp.run_id, rp.risk_score,
+               COALESCE(rp.is_flagged, 0) as is_flagged,
+               COALESCE(rp.risk_category, 'Unknown') as risk_category,
+               rp.predicted_outcome, rp.probabilities_json,
                rp.features_snapshot_json, rp.model_version, rp.created_at,
                s.source, s.updated_at as student_updated_at
-        FROM RankedPredictions rp
-        JOIN students s ON rp.student_id = s.student_id
-        WHERE rp.rn = 1
+        FROM students s
+        LEFT JOIN RankedPredictions rp ON rp.student_id = s.student_id AND rp.rn = 1
+        WHERE 1 = 1
         """
         params = []
 
@@ -272,14 +274,14 @@ def get_latest_predictions(
             params.append(risk_category)
 
         if search:
-            query += " AND rp.student_id LIKE ?"
+            query += " AND s.student_id LIKE ?"
             params.append(f"%{search}%")
 
         # Total count for pagination
         count_query = f"SELECT COUNT(*) FROM ({query})"
         total = conn.execute(count_query, params).fetchone()[0]
 
-        query += " ORDER BY rp.risk_score DESC, rp.created_at DESC LIMIT ? OFFSET ?"
+        query += " ORDER BY COALESCE(rp.risk_score, -1) DESC, rp.created_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
         rows = conn.execute(query, params).fetchall()
@@ -352,6 +354,28 @@ def get_dashboard_summary() -> Dict[str, Any]:
 
         latest_run = get_latest_prediction_run()
 
+        bucket_row = conn.execute("""
+        WITH RankedPredictions AS (
+            SELECT risk_score,
+                   ROW_NUMBER() OVER(PARTITION BY student_id ORDER BY created_at DESC) as rn
+            FROM predictions
+        )
+        SELECT
+            SUM(CASE WHEN risk_score >= 0.0 AND risk_score < 0.1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.1 AND risk_score < 0.2 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.2 AND risk_score < 0.3 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.3 AND risk_score < 0.4 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.4 AND risk_score < 0.5 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.5 AND risk_score <= 0.6 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score > 0.6 AND risk_score < 0.7 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.7 AND risk_score < 0.8 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.8 AND risk_score < 0.9 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN risk_score >= 0.9 AND risk_score <= 1.0 THEN 1 ELSE 0 END)
+        FROM RankedPredictions
+        WHERE rn = 1;
+        """).fetchone()
+        risk_distribution = [int(v or 0) for v in bucket_row] if bucket_row else [0] * 10
+
         return {
             "total_students": int(total_students),
             "students_with_predictions": int(with_predictions),
@@ -360,6 +384,7 @@ def get_dashboard_summary() -> Dict[str, Any]:
             "average_risk_score": avg_risk_score,
             "threshold": RISK_THRESHOLD,
             "latest_run": latest_run,
+            "risk_distribution": risk_distribution,
         }
 
 

@@ -61,6 +61,8 @@ class EduGuardKafkaConsumer:
                 auto_offset_reset="earliest",
                 enable_auto_commit=True,
                 consumer_timeout_ms=timeout_ms,
+                request_timeout_ms=10000,
+                session_timeout_ms=6000,
                 value_deserializer=lambda m: json.loads(m.decode("utf-8")),
                 key_deserializer=lambda k: k.decode("utf-8") if k else None,
             )
@@ -129,15 +131,24 @@ class EduGuardKafkaConsumer:
         Returns list of processing results.
         """
         consumer = self.get_consumer(timeout_ms=timeout_ms)
-        results = []
-        count = 0
+        results: List[Dict[str, Any]] = []
+        deadline = time.time() + (timeout_ms / 1000.0)
         try:
-            for message in consumer:
-                res = self.process_record(message.value)
-                results.append(res)
-                count += 1
-                if count >= max_records:
-                    break
+            while len(results) < max_records and time.time() < deadline:
+                remaining_ms = max(50, int((deadline - time.time()) * 1000))
+                polled = consumer.poll(
+                    timeout_ms=min(remaining_ms, 1000),
+                    max_records=max_records - len(results),
+                )
+                if not polled:
+                    continue
+                for messages in polled.values():
+                    for message in messages:
+                        results.append(self.process_record(message.value))
+                        if len(results) >= max_records:
+                            break
+                    if len(results) >= max_records:
+                        break
         except Exception as e:
             logger.debug("Consumer finished polling: %s", e)
         return results

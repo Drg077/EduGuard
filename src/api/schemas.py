@@ -24,6 +24,7 @@ class DashboardSummary(BaseModel):
     average_risk_score: float
     threshold: float
     latest_run: Optional[Dict[str, Any]] = None
+    risk_distribution: List[int] = Field(default_factory=lambda: [0] * 10)
 
 
 class StudentSummary(BaseModel):

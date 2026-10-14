@@ -184,9 +184,19 @@ def ingest_student(req: IngestStudentRequest):
         )
         producer.flush()
 
-        # Drain the consumer immediately to ensure synchronous availability
+        # Persist immediately so the record is available even if the Kafka
+        # consumer group is still electing a coordinator.
         consumer = get_kafka_consumer()
-        consume_results = consumer.drain_records(max_records=5, timeout_ms=2000)
+        consumer.process_record(
+            {
+                "event_id": pub_res["event_id"],
+                "student_id": req.student_id,
+                "event_type": "STUDENT_RECORD_INGESTED",
+                "features": req.features,
+                "source": req.source,
+            }
+        )
+        consumer.drain_records(max_records=5, timeout_ms=2000)
 
         return IngestResponse(
             message=f"Student {req.student_id} ingested successfully via Kafka.",
@@ -215,6 +225,16 @@ def ingest_batch(req: IngestBatchRequest):
         producer.flush()
 
         consumer = get_kafka_consumer()
+        for r, pub in zip(req.records, results):
+            consumer.process_record(
+                {
+                    "event_id": pub["event_id"],
+                    "student_id": r.student_id,
+                    "event_type": "STUDENT_RECORD_INGESTED",
+                    "features": r.features,
+                    "source": r.source,
+                }
+            )
         consumer.drain_records(max_records=len(req.records) + 5, timeout_ms=3000)
 
         return IngestResponse(
