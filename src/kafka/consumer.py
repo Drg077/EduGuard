@@ -10,7 +10,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer, TopicPartition
 from kafka.errors import KafkaError
 
 from src.config import (
@@ -51,19 +51,42 @@ class EduGuardKafkaConsumer:
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
+    def _build_consumer(self, timeout_ms: int = 5000, use_group: bool = False) -> KafkaConsumer:
+        """
+        Builds a KafkaConsumer.
+        Manual partition assignment (use_group=False) avoids consumer-group
+        coordinator issues with Kafka 4.x / KRaft and is used for drain/background.
+        """
+        kwargs = {
+            "bootstrap_servers": self.bootstrap_servers,
+            "auto_offset_reset": "earliest",
+            "enable_auto_commit": False,
+            "consumer_timeout_ms": timeout_ms,
+            "value_deserializer": lambda m: json.loads(m.decode("utf-8")),
+            "key_deserializer": lambda k: k.decode("utf-8") if k else None,
+            "api_version": (2, 6, 0),
+            "request_timeout_ms": 15000,
+            "session_timeout_ms": 10000,
+        }
+        if use_group:
+            kwargs["group_id"] = self.group_id
+            return KafkaConsumer(self.topic, **kwargs)
+
+        # No consumer group — assign all topic partitions explicitly
+        consumer = KafkaConsumer(**kwargs)
+        partitions = consumer.partitions_for_topic(self.topic)
+        if not partitions:
+            # Topic may not exist yet; create metadata probe via empty assign
+            consumer.close()
+            raise KafkaError(f"Topic {self.topic} has no partitions (is Kafka ready?)")
+        tps = [TopicPartition(self.topic, p) for p in sorted(partitions)]
+        consumer.assign(tps)
+        return consumer
+
     def get_consumer(self, timeout_ms: int = 5000) -> KafkaConsumer:
-        """Initializes and returns a configured KafkaConsumer."""
+        """Initializes and returns a configured KafkaConsumer (manual assign)."""
         if self._consumer is None:
-            self._consumer = KafkaConsumer(
-                self.topic,
-                bootstrap_servers=self.bootstrap_servers,
-                group_id=self.group_id,
-                auto_offset_reset="earliest",
-                enable_auto_commit=True,
-                consumer_timeout_ms=timeout_ms,
-                value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-                key_deserializer=lambda k: k.decode("utf-8") if k else None,
-            )
+            self._consumer = self._build_consumer(timeout_ms=timeout_ms, use_group=False)
         return self._consumer
 
     def process_record(self, raw_event: Dict[str, Any]) -> Dict[str, Any]:
@@ -126,18 +149,28 @@ class EduGuardKafkaConsumer:
     def drain_records(self, max_records: int = 100, timeout_ms: int = 3000) -> List[Dict[str, Any]]:
         """
         Pulls and processes available messages up to max_records or timeout.
+        Uses a short-lived consumer with manual partition assignment.
         Returns list of processing results.
         """
-        consumer = self.get_consumer(timeout_ms=timeout_ms)
         results = []
         count = 0
+        consumer = None
         try:
+            # Prefer shared consumer if already open; else open a one-shot drain consumer
+            if self._consumer is not None:
+                consumer = self._consumer
+            else:
+                consumer = self._build_consumer(timeout_ms=timeout_ms, use_group=False)
+                self._consumer = consumer
+
             for message in consumer:
                 res = self.process_record(message.value)
                 results.append(res)
                 count += 1
                 if count >= max_records:
                     break
+        except StopIteration:
+            pass
         except Exception as e:
             logger.debug("Consumer finished polling: %s", e)
         return results
@@ -151,13 +184,23 @@ class EduGuardKafkaConsumer:
 
         def _loop():
             logger.info("EduGuard Kafka background consumer started.")
+            backoff = 1
             while self._running:
                 try:
-                    self.drain_records(max_records=50, timeout_ms=2000)
-                    time.sleep(1)
+                    processed = self.drain_records(max_records=50, timeout_ms=2000)
+                    backoff = 1 if processed else min(backoff + 1, 5)
+                    time.sleep(backoff)
                 except Exception as e:
                     logger.warning("Kafka consumer loop error: %s", e)
-                    time.sleep(2)
+                    time.sleep(min(backoff * 2, 10))
+                    backoff = min(backoff * 2, 10)
+                    # Recreate consumer after failures
+                    if self._consumer:
+                        try:
+                            self._consumer.close()
+                        except Exception:
+                            pass
+                        self._consumer = None
             logger.info("EduGuard Kafka background consumer stopped.")
 
         self._thread = threading.Thread(target=_loop, daemon=True, name="KafkaConsumerThread")

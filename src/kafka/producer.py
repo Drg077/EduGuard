@@ -41,6 +41,7 @@ class EduGuardKafkaProducer:
                 retries=3,
                 request_timeout_ms=10000,
                 acks="all",
+                api_version=(2, 6, 0),
             )
         return self._producer
 

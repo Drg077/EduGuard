@@ -414,7 +414,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <span class="text-slate-500 block mb-1">Algorithm</span>
-            <span id="model-algorithm" class="font-bold text-slate-800 text-sm">GradientBoostingClassifier</span>
+            <span id="model-algorithm" class="font-bold text-slate-800 text-sm">--</span>
           </div>
           <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <span class="text-slate-500 block mb-1">Held-Out Test Accuracy</span>
@@ -451,12 +451,8 @@
           </div>
           <div>
             <h5 class="font-semibold text-slate-800 mb-2">Dataset Specifications</h5>
-            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-slate-600">
-              <p><strong>Dataset:</strong> UCI "Predict Students' Dropout and Academic Success" (ID 697)</p>
-              <p><strong>Total Instances:</strong> 4,424 students</p>
-              <p><strong>Features:</strong> 36 variables (curricular, demographic, socio-economic)</p>
-              <p><strong>Target Classes:</strong> Graduate (50%), Dropout (32%), Enrolled (18%)</p>
-              <p><strong>Test Split:</strong> Stratified 20% holdout test set (885 instances)</p>
+            <div id="model-dataset-specs" class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 text-slate-600">
+              <p class="text-slate-400">Loading dataset specifications...</p>
             </div>
           </div>
         </div>
@@ -564,9 +560,9 @@
               <span class="font-bold text-slate-800 flex items-center">
                 <i class="fa-solid fa-server text-indigo-600 mr-2"></i> FastAPI Backend
               </span>
-              <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">OPERATIONAL</span>
+              <span id="sys-backend-status" class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">CHECKING</span>
             </div>
-            <p class="text-slate-500 text-[11px]">Serving REST endpoints, validation, CORS, and prediction inference.</p>
+            <p id="sys-backend-info" class="text-slate-500 text-[11px]">Serving REST endpoints, validation, CORS, and prediction inference.</p>
           </div>
 
           <!-- Apache Kafka Card -->
@@ -597,9 +593,9 @@
               <span class="font-bold text-slate-800 flex items-center">
                 <i class="fa-solid fa-calendar-days text-purple-600 mr-2"></i> APScheduler Weekly Cron
               </span>
-              <span id="sys-sched-status" class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">RUNNING</span>
+              <span id="sys-sched-status" class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">CHECKING</span>
             </div>
-            <p id="sys-sched-info" class="text-slate-500 text-[11px]">Every Monday at 08:00 UTC</p>
+            <p id="sys-sched-info" class="text-slate-500 text-[11px]">Loading schedule...</p>
           </div>
         </div>
       </div>

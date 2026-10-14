@@ -30,11 +30,20 @@ else
 fi
 
 # 4. Initialize Database
-echo "[3/4] Initializing operational database..."
+echo "[3/5] Initializing operational database..."
 PYTHONPATH=. $PYTHON -c "from src.storage.database import init_db; init_db()"
 
-# 5. Start Backend & Dashboard Server
-echo "[4/4] Starting EduGuard FastAPI Backend & Advisor Dashboard on port 8000..."
+# 5. Seed UCI student data when the operational DB is empty
+STUDENT_COUNT=$(PYTHONPATH=. $PYTHON -c "from src.storage.database import init_db, count_students; init_db(); print(count_students())")
+if [ "$STUDENT_COUNT" = "0" ]; then
+    echo "[4/5] Seeding UCI student records via Kafka (empty database detected)..."
+    PYTHONPATH=. $PYTHON scripts/ingest_uci_data.py --limit 120 || echo "Warning: seed step failed; start the API and re-run scripts/ingest_uci_data.py"
+else
+    echo "[4/5] Operational database already has $STUDENT_COUNT students — skipping seed."
+fi
+
+# 6. Start Backend & Dashboard Server
+echo "[5/5] Starting EduGuard FastAPI Backend & Advisor Dashboard on port 8000..."
 echo "Advisor Dashboard available at: http://localhost:8000"
 echo "Interactive API Documentation at: http://localhost:8000/docs"
 echo "=========================================================="

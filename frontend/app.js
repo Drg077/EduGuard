@@ -116,12 +116,39 @@ async function fetchSummary() {
   }
 }
 
+function setStatusBadge(el, label, ok) {
+  if (!el) return;
+  el.innerText = label;
+  el.className = ok
+    ? "bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold"
+    : "bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-bold";
+}
+
 // Fetch and render health status
 async function fetchHealth() {
   try {
     const res = await fetch(`${API_BASE}/api/health`);
     if (!res.ok) return;
     const health = await res.json();
+
+    // Backend / API pill
+    const backendOk = health.backend === "HEALTHY" || health.status === "OPERATIONAL" || health.status === "DEGRADED";
+    const pillBackend = document.getElementById("pill-backend");
+    if (pillBackend) {
+      const dot = pillBackend.querySelector("span.w-2");
+      const label = pillBackend.querySelector("span:last-child");
+      if (dot) dot.className = `w-2 h-2 rounded-full ${backendOk ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`;
+      if (label) label.innerText = backendOk ? "API Online" : "API Offline";
+    }
+    setStatusBadge(
+      document.getElementById("sys-backend-status"),
+      health.backend || health.status || "UNKNOWN",
+      backendOk
+    );
+    const backendInfo = document.getElementById("sys-backend-info");
+    if (backendInfo) {
+      backendInfo.innerText = `Status: ${health.status || "UNKNOWN"} | Database: ${health.database || "UNKNOWN"}`;
+    }
 
     // Kafka pill
     const dotKafka = document.getElementById("dot-kafka");
@@ -130,13 +157,11 @@ async function fetchHealth() {
     if (health.kafka && health.kafka.reachable) {
       dotKafka.className = "w-2 h-2 rounded-full bg-emerald-400";
       textKafka.innerText = "Kafka Connected";
-      sysKafkaStatus.innerText = "CONNECTED";
-      sysKafkaStatus.className = "bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold";
+      setStatusBadge(sysKafkaStatus, "CONNECTED", true);
     } else {
       dotKafka.className = "w-2 h-2 rounded-full bg-rose-400";
       textKafka.innerText = "Kafka Offline";
-      sysKafkaStatus.innerText = "UNREACHABLE";
-      sysKafkaStatus.className = "bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-bold";
+      setStatusBadge(sysKafkaStatus, "UNREACHABLE", false);
     }
 
     // HDFS pill
@@ -146,21 +171,35 @@ async function fetchHealth() {
     if (health.hdfs && health.hdfs.reachable) {
       dotHdfs.className = "w-2 h-2 rounded-full bg-emerald-400";
       textHdfs.innerText = "HDFS Connected";
-      sysHdfsStatus.innerText = "HEALTHY";
-      sysHdfsStatus.className = "bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold";
+      setStatusBadge(sysHdfsStatus, "HEALTHY", true);
     } else {
       dotHdfs.className = "w-2 h-2 rounded-full bg-rose-400";
       textHdfs.innerText = "HDFS Offline";
-      sysHdfsStatus.innerText = "UNREACHABLE";
-      sysHdfsStatus.className = "bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-bold";
+      setStatusBadge(sysHdfsStatus, "UNREACHABLE", false);
     }
 
-    // Scheduler info
+    // Scheduler info from API
+    const schedStatus = document.getElementById("sys-sched-status");
+    const schedInfo = document.getElementById("sys-sched-info");
     if (health.scheduler) {
-      document.getElementById("sys-sched-info").innerText = health.scheduler.schedule + " (Next: " + (health.scheduler.next_run_time ? new Date(health.scheduler.next_run_time).toLocaleString() : "None") + ")";
+      const schedLabel = health.scheduler.status || "UNKNOWN";
+      const running = schedLabel === "RUNNING";
+      setStatusBadge(schedStatus, schedLabel, running);
+      const schedule = health.scheduler.schedule || "Schedule unavailable";
+      const next = health.scheduler.next_run_time
+        ? new Date(health.scheduler.next_run_time).toLocaleString()
+        : "None";
+      if (schedInfo) schedInfo.innerText = `${schedule} (Next: ${next})`;
+    } else {
+      setStatusBadge(schedStatus, "UNAVAILABLE", false);
+      if (schedInfo) schedInfo.innerText = "Scheduler status unavailable from API";
     }
   } catch (err) {
     console.error("Health check error:", err);
+    setStatusBadge(document.getElementById("sys-backend-status"), "UNREACHABLE", false);
+    setStatusBadge(document.getElementById("sys-kafka-status"), "UNREACHABLE", false);
+    setStatusBadge(document.getElementById("sys-hdfs-status"), "UNREACHABLE", false);
+    setStatusBadge(document.getElementById("sys-sched-status"), "UNAVAILABLE", false);
   }
 }
 
@@ -429,16 +468,21 @@ async function loadPredictionRuns() {
 async function loadModelInfo() {
   try {
     const res = await fetch(`${API_BASE}/api/model/info`);
+    if (!res.ok) throw new Error("Failed to fetch model info");
     const data = await res.json();
     const meta = data.metadata || {};
 
-    document.getElementById("model-algorithm").innerText = meta.algorithm || "GradientBoostingClassifier";
-    if (meta.overall) {
+    document.getElementById("model-algorithm").innerText = meta.algorithm || "--";
+    if (meta.overall && meta.overall.accuracy != null) {
       document.getElementById("model-accuracy").innerText = (meta.overall.accuracy * 100).toFixed(1) + "%";
+    } else {
+      document.getElementById("model-accuracy").innerText = "--";
     }
     if (meta.dropout_class) {
-      document.getElementById("model-recall").innerText = (meta.dropout_class.recall * 100).toFixed(1) + "%";
-      document.getElementById("model-precision").innerText = (meta.dropout_class.precision * 100).toFixed(1) + "%";
+      document.getElementById("model-recall").innerText =
+        meta.dropout_class.recall != null ? (meta.dropout_class.recall * 100).toFixed(1) + "%" : "--";
+      document.getElementById("model-precision").innerText =
+        meta.dropout_class.precision != null ? (meta.dropout_class.precision * 100).toFixed(1) + "%" : "--";
     }
 
     if (meta.top_features) {
@@ -453,8 +497,28 @@ async function loadModelInfo() {
         `)
         .join("");
     }
+
+    // Dataset specs from API metadata (no hardcoded counts)
+    const specs = document.getElementById("model-dataset-specs");
+    if (specs) {
+      const total = meta.dataset_records_total != null ? meta.dataset_records_total.toLocaleString() : "--";
+      const testRecords = meta.test_records != null ? meta.test_records.toLocaleString() : "--";
+      const splitPct = meta.test_split_ratio != null ? Math.round(meta.test_split_ratio * 100) : "--";
+      const classes = Array.isArray(meta.classes) ? meta.classes.join(", ") : "--";
+      specs.innerHTML = `
+        <p><strong>Dataset:</strong> ${meta.dataset_name || data.dataset || "--"}</p>
+        <p><strong>Total Instances:</strong> ${total} students</p>
+        <p><strong>Train / Test:</strong> ${(meta.train_records != null ? meta.train_records.toLocaleString() : "--")} / ${testRecords}</p>
+        <p><strong>Test Split:</strong> Stratified ${splitPct}% holdout (${testRecords} instances)</p>
+        <p><strong>Target Classes:</strong> ${classes}</p>
+        <p><strong>Model Version:</strong> ${meta.version || "--"} | Seed: ${meta.random_seed != null ? meta.random_seed : "--"}</p>
+        <p><strong>Flagging Rule:</strong> ${data.flagging_rule || "--"}</p>
+      `;
+    }
   } catch (err) {
     console.error("Model info error:", err);
+    const specs = document.getElementById("model-dataset-specs");
+    if (specs) specs.innerHTML = `<p class="text-rose-500">Unable to load model metadata from API.</p>`;
   }
 }
 
@@ -506,8 +570,9 @@ async function runSinglePrediction(e) {
     box.classList.remove("hidden");
 
     const scoreEl = document.getElementById("est-score-val");
-    scoreEl.innerText = (pred.dropout_risk_score * 100).toFixed(1) + "%";
-    scoreEl.className = `text-2xl font-bold ${pred.is_flagged ? "text-rose-600" : pred.risk_score > 0.35 ? "text-amber-600" : "text-emerald-600"}`;
+    const risk = pred.dropout_risk_score;
+    scoreEl.innerText = (risk * 100).toFixed(1) + "%";
+    scoreEl.className = `text-2xl font-bold ${pred.is_flagged ? "text-rose-600" : risk > 0.35 ? "text-amber-600" : "text-emerald-600"}`;
 
     document.getElementById("est-cat-val").innerText = pred.risk_category;
     document.getElementById("est-flag-val").innerText = pred.is_flagged ? "FLAGGED (>0.60)" : "NOT FLAGGED";
