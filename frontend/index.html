@@ -84,6 +84,14 @@
           <i class="fa-solid fa-calculator"></i>
           <span>Risk Estimator</span>
         </button>
+        <button
+  onclick="switchTab('add-student')"
+  id="tab-btn-add-student"
+  class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5"
+>
+  <i class="fa-solid fa-user-plus"></i>
+  <span>Add Student</span>
+</button>
         <button onclick="switchTab('system')" id="tab-btn-system" class="tab-btn px-3 py-2.5 text-xs font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5">
           <i class="fa-solid fa-server"></i>
           <span>System Status</span>
@@ -546,6 +554,192 @@
         </div>
       </div>
     </section>
+    <!-- Add Student Section -->
+<section id="tab-add-student" class="hidden space-y-6">
+
+  <div class="bg-white rounded-xl border border-slate-200 p-6">
+    <h4 class="font-bold text-sm text-slate-800 mb-1">
+      Add Student Record
+    </h4>
+
+    <p class="text-xs text-slate-500 mb-5">
+      Enter the student's academic and financial details to ingest
+      a new student record into EduGuard.
+    </p>
+
+    <form
+      id="add-student-form"
+      onsubmit="addStudent(event)"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs"
+    >
+
+      <div>
+        <label for="add-student-id"
+          class="block font-medium text-slate-700 mb-1">
+          Student Identifier
+        </label>
+        <input
+          id="add-student-id"
+          type="text"
+          required
+          maxlength="100"
+          placeholder="e.g. STU-2001"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-age"
+          class="block font-medium text-slate-700 mb-1">
+          Age at Enrollment
+        </label>
+        <input
+          id="add-student-age"
+          type="number"
+          min="15"
+          max="100"
+          step="1"
+          required
+          value="20"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-adm-grade"
+          class="block font-medium text-slate-700 mb-1">
+          Admission Grade (0–200)
+        </label>
+        <input
+          id="add-student-adm-grade"
+          type="number"
+          min="0"
+          max="200"
+          step="0.1"
+          required
+          value="120"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-sem1-app"
+          class="block font-medium text-slate-700 mb-1">
+          1st Semester Approved Units
+        </label>
+        <input
+          id="add-student-sem1-app"
+          type="number"
+          min="0"
+          step="1"
+          required
+          value="1"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-sem1-grade"
+          class="block font-medium text-slate-700 mb-1">
+          1st Semester Grade (0–20)
+        </label>
+        <input
+          id="add-student-sem1-grade"
+          type="number"
+          min="0"
+          max="20"
+          step="0.1"
+          required
+          value="10.5"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-sem2-app"
+          class="block font-medium text-slate-700 mb-1">
+          2nd Semester Approved Units
+        </label>
+        <input
+          id="add-student-sem2-app"
+          type="number"
+          min="0"
+          step="1"
+          required
+          value="0"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-sem2-grade"
+          class="block font-medium text-slate-700 mb-1">
+          2nd Semester Grade (0–20)
+        </label>
+        <input
+          id="add-student-sem2-grade"
+          type="number"
+          min="0"
+          max="20"
+          step="0.1"
+          required
+          value="0"
+          class="w-full border border-slate-200 rounded-lg p-2"
+        >
+      </div>
+
+      <div>
+        <label for="add-student-tuition"
+          class="block font-medium text-slate-700 mb-1">
+          Tuition Fees Up to Date
+        </label>
+        <select
+          id="add-student-tuition"
+          required
+          class="w-full border border-slate-200 rounded-lg p-2 bg-white"
+        >
+          <option value="1" selected>Yes (1)</option>
+          <option value="0">No (0)</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="add-student-debtor"
+          class="block font-medium text-slate-700 mb-1">
+          Debtor
+        </label>
+        <select
+          id="add-student-debtor"
+          required
+          class="w-full border border-slate-200 rounded-lg p-2 bg-white"
+        >
+          <option value="0" selected>No (0)</option>
+          <option value="1">Yes (1)</option>
+        </select>
+      </div>
+
+      <div class="sm:col-span-2 lg:col-span-3">
+        <button
+          id="add-student-submit"
+          type="submit"
+          class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-medium"
+        >
+          <i class="fa-solid fa-user-plus mr-1"></i>
+          Add Student
+        </button>
+      </div>
+
+    </form>
+
+    <div
+      id="add-student-result"
+      class="hidden mt-5 p-4 rounded-lg border text-xs"
+      role="status"
+      aria-live="polite"
+    ></div>
+  </div>
+
+</section>
 
     <!-- ========================================== -->
     <!-- TAB 7: SYSTEM INFRASTRUCTURE HEALTH -->

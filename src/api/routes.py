@@ -127,7 +127,7 @@ def get_students(
             student_id=p["student_id"],
             risk_score=p["risk_score"],
             risk_category=p["risk_category"],
-            is_flagged=p["is_flagged"],
+            is_flagged=p["is_flagged"],67
             predicted_outcome=p["predicted_outcome"],
             probabilities=p["probabilities"],
             created_at=p["created_at"],
